@@ -21,6 +21,7 @@ THE SOFTWARE.
 #include<hip/hip_runtime.h>
 #include<hip/hip_runtime_api.h>
 #include<iostream>
+#include<time.h>
 
 #define FIL_X 3
 #define FIL_Y 3
@@ -32,6 +33,8 @@ THE SOFTWARE.
 #define FIL_NUM FIL_X * FIL_Y
 
 #define IMG_N 10
+
+#define N 1<<16
 
 __global__ void conv_3x3(hipLaunchParm lp, float *weights, float *input, float *output)
 {
@@ -45,21 +48,50 @@ __global__ void conv_3x3(hipLaunchParm lp, float *weights, float *input, float *
   float w20 = weights[6];
   float w21 = weights[7];
   float w22 = weights[8];
-  for(unsigned i=0;i<IMG_Y;i++){
+
+  float var00, var01, var02, \
+        var10, var11, var12, \
+        var20, var21, var22;
+
+  float tmp1, tmp2;
+
+  var01 = input[tid - IMG_X];
+  var00 = __shfl_up(var01, 1, 64);
+  var02 = __shfl_down(var01, 1, 64);
+  var11 = input[tid];
+  var10 = __shfl_up(var11, 1, 64);
+  var12 = __shfl_down(var11, 1, 64);
+  var21 = input[tid + IMG_X];
+  var20 = __shfl_up(var21, 1, 64);
+  var22 = __shfl_down(var21, 1, 64);
+
+  tmp1 = w00 * var00;
+  tmp2 = w01 * var01;
+  tmp1 = w02 * var02 + tmp1;
+  tmp2 = w10 * var10 + tmp2;
+  tmp1 = w11 * var11 + tmp1;
+  tmp2 = w12 * var12 + tmp2;
+  tmp1 = w20 * var20 + tmp1;
+  tmp2 = w21 * var21 + tmp2;
+  tmp1 = w22 * var22 + tmp1;
+  output[tid] = tmp1 + tmp2;
+
+  for(unsigned i=1;i<IMG_Y;i++){
     if(tid < IMG_X){
 
-      float var01 = input[tid - IMG_X + i*IMG_X];
-      float var00 = __shfl_up(var01, 1, 64);
-      float var02 = __shfl_down(var01, 1, 64);
-      float var11 = input[tid + i*IMG_X];
-      float var10 = __shfl_up(var11, 1, 64);
-      float var12 = __shfl_down(var11, 1, 64);
-      float var21 = input[tid + IMG_X + i*IMG_X];
-      float var20 = __shfl_up(var21, 1, 64);
-      float var22 = __shfl_down(var21, 1, 64);
+      var00 = var10;
+      var01 = var11;
+      var02 = var12;
+      var10 = var20;
+      var11 = var21;
+      var12 = var22;
 
-      float tmp1 = w00 * var00;
-      float tmp2 = w01 * var01;
+      var21 = input[tid + i*IMG_X];
+      var20 = __shfl_up(var21, 1, 64);
+      var22 = __shfl_down(var21, 1, 64);
+
+      tmp1 = w00 * var00;
+      tmp2 = w01 * var01;
       tmp1 = w02 * var02 + tmp1;
       tmp2 = w10 * var10 + tmp2;
       tmp1 = w11 * var11 + tmp1;
@@ -95,9 +127,13 @@ int main() {
     hipMemcpy(od, oh, sizeof(float)*IMG_NUM, hipMemcpyHostToDevice);
     hipMemcpy(id, ih, sizeof(float)*IMG_NUM, hipMemcpyHostToDevice);
     hipMemcpy(wd, wh, sizeof(float)*FIL_NUM, hipMemcpyHostToDevice);
-
-    hipLaunchKernel(conv_3x3, dim3(IMG_Y,1,1), dim3(IMG_X,1,1), 0, 0, wd, id, od);
-
+    clock_t start, stop;
+    start = clock();
+    for(int i=0;i<N;i++){
+      hipLaunchKernel(conv_3x3, dim3(IMG_Y,1,1), dim3(IMG_X,1,1), 0, 0, wd, id, od);
+    }
+    stop = clock();
+    std::cout<<(double)(stop-start)/CLOCKS_PER_SEC<<std::endl;;
     hipMemcpy(oh, od, sizeof(float)*IMG_NUM, hipMemcpyDeviceToHost);
 
     std::cout<<oh[0]<<" "<<ih[0]<<std::endl;
