@@ -28,7 +28,7 @@ THE SOFTWARE.
 #define FIL_Y 5
 
 #define IMG_N 200
-#define IMG_C 1
+#define IMG_C 3
 
 #define IMG_IN_X 20
 #define IMG_IN_Y 20
@@ -40,7 +40,7 @@ THE SOFTWARE.
 #define IMG_OUT_NUM IMG_OUT_X * IMG_OUT_Y
 
 #define FIL_NUM FIL_X * FIL_Y
-#define FIL_N 1
+#define FIL_N 64
 
 /*
 Weights access pattern
@@ -51,38 +51,14 @@ weights = weights_d  + (bx%IMG_C) * FIL_NUM + i * (IMG_C*FIL_NUM);
 
 */
 
-__device__ void convolve(float *weights, float *input, float *output) {
+__device__ void convolve(float *weights_d, float *input, float *output) {
 	int tid = threadIdx.x;
 
-	float w00 = weights[0];
-	float w01 = weights[1];
-	float w02 = weights[2];
-	float w03 = weights[3];
-	float w04 = weights[4];
-
-	float w10 = weights[5];
-	float w11 = weights[6];
-	float w12 = weights[7];
-	float w13 = weights[8];
-	float w14 = weights[9];
-
-	float w20 = weights[10];
-	float w21 = weights[11];
-	float w22 = weights[12];
-	float w23 = weights[13];
-	float w24 = weights[14];
-
-	float w30 = weights[15];
-	float w31 = weights[16];
-	float w32 = weights[17];
-	float w33 = weights[18];
-	float w34 = weights[19];
-
-	float w40 = weights[20];
-	float w41 = weights[21];
-	float w42 = weights[22];
-	float w43 = weights[23];
-	float w44 = weights[24];
+	float w00, w01, w02, w03, w04, \
+		w10, w11, w12, w13, w14, \
+		w20, w21, w22, w23, w24, \
+		w30, w31, w32, w33, w34, \
+		w40, w41, w42, w43, w44;
 
 	float var00, var01, var02, var03, var04, \
 		var10, var11, var12, var13, var14, \
@@ -92,44 +68,71 @@ __device__ void convolve(float *weights, float *input, float *output) {
 
 	float tmp1, tmp2;
 
-	var02 = input[tid];
+	float *weights = weights_d;
 
-		var00 = __shfl_up(var02, 2, 64);
-		var01 = __shfl_up(var02, 1, 64);
-		var03 = __shfl_down(var02, 1, 64);
-		var04 = __shfl_down(var02, 2, 64);
+	w00 = weights[0];
+	w01 = weights[1];
+	w02 = weights[2];
+	w03 = weights[3];
+	w04 = weights[4];
+
+	w10 = weights[5];
+	w11 = weights[6];
+	w12 = weights[7];
+	w13 = weights[8];
+	w14 = weights[9];
+
+	w20 = weights[10];
+	w21 = weights[11];
+	w22 = weights[12];
+	w23 = weights[13];
+	w24 = weights[14];
+
+	w30 = weights[15];
+	w31 = weights[16];
+	w32 = weights[17];
+	w33 = weights[18];
+	w34 = weights[19];
+
+	w40 = weights[20];
+	w41 = weights[21];
+	w42 = weights[22];
+	w43 = weights[23];
+	w44 = weights[24];
+
+	var02 = input[tid];
+	var00 = __shfl_up(var02, 2, 64);
+	var01 = __shfl_up(var02, 1, 64);
+	var03 = __shfl_down(var02, 1, 64);
+	var04 = __shfl_down(var02, 2, 64);
 
 
 	var12 = input[tid + IMG_IN_X];
-
-		var10 = __shfl_up(var12, 2, 64);
-		var11 = __shfl_up(var12, 1, 64);
-		var13 = __shfl_down(var12, 1, 64);
-		var14 = __shfl_down(var12, 2, 64);
+	var10 = __shfl_up(var12, 2, 64);
+	var11 = __shfl_up(var12, 1, 64);
+	var13 = __shfl_down(var12, 1, 64);
+	var14 = __shfl_down(var12, 2, 64);
 
 
 	var22 = input[tid + 2 * IMG_IN_X];
-
-		var20 = __shfl_up(var22, 2, 64);
-		var21 = __shfl_up(var22, 1, 64);
-		var23 = __shfl_down(var22, 1, 64);
-		var24 = __shfl_down(var22, 2, 64);
+	var20 = __shfl_up(var22, 2, 64);
+	var21 = __shfl_up(var22, 1, 64);
+	var23 = __shfl_down(var22, 1, 64);
+	var24 = __shfl_down(var22, 2, 64);
 
 
 	var32 = input[tid + 3 * IMG_IN_X];
-
-		var30 = __shfl_up(var32, 2, 64);
-		var31 = __shfl_up(var32, 1, 64);
-		var33 = __shfl_down(var32, 1, 64);
-		var34 = __shfl_down(var32, 2, 64);
+	var30 = __shfl_up(var32, 2, 64);
+	var31 = __shfl_up(var32, 1, 64);
+	var33 = __shfl_down(var32, 1, 64);
+	var34 = __shfl_down(var32, 2, 64);
 
 
 	var42 = input[tid + 4 * IMG_IN_X];
-
-		var40 = __shfl_up(var42, 2, 64);
-		var41 = __shfl_up(var42, 1, 64);
-		var43 = __shfl_down(var42, 1, 64);
-		var44 = __shfl_down(var42, 2, 64);
+	var40 = __shfl_up(var42, 2, 64);
+	var41 = __shfl_up(var42, 1, 64);
+	var43 = __shfl_down(var42, 1, 64);
+	var44 = __shfl_down(var42, 2, 64);
 	
 
 	tmp1 = w00 * var00;
@@ -233,36 +236,39 @@ __device__ void convolve(float *weights, float *input, float *output) {
 		if (tid > 1 && tid < IMG_IN_X-2) {
 			output[tid - 2 + i * IMG_OUT_X] = tmp1 + tmp2;
 		}
-//		printf("Value %f calculated at thread: %d in block: %d at row: %d\n", output[tid - 2 + i * IMG_OUT_X], threadIdx.x, blockIdx.x, tid - 2 + i * IMG_OUT_X);
+
 	}
 
-	if (threadIdx.x == 0) {
-		for (unsigned i = 0;i < IMG_OUT_NUM;i++) {
-//			printf("Value %f calculated at in block: %d at row: %d\n", output[i], blockIdx.x, i);
-		}
-	}
 
 }
 
-__global__ void conv_5x5(float *weights_d, float *input_d, float *output_d, float *val)
+__global__ void conv_5x5(float *weights_d, float *input_d, float *output_d)
 {
-
-	/*  unsigned quo = bx / IMG_C;
-	unsigned rem = bx % IMG_C;
-	float* input = input_d + bx * IMG_IN_NUM;
-	float *weights, *output;
-	for(unsigned i=0;i<FIL_N;i++){
-	weights = weights_d + rem * FIL_NUM + i * IMG_C * FIL_NUM;
-	output = output_d + quo * FIL_N * IMG_C * IMG_OUT_NUM ;
-	}
-	*/
 	unsigned bx = blockIdx.x;
 	
-	//  for(unsigned bx= 0;bx<IMG_N;bx++){
-	float *weights = weights_d;
-	float *input = input_d + bx * IMG_IN_NUM;
-	float *output = output_d + bx * IMG_OUT_NUM;
-	convolve(weights, input, output);
+	float *input, *weights, *output;
+
+	unsigned quo = bx / IMG_C;
+	unsigned rem = bx % IMG_C;
+	output = output_d + bx * IMG_OUT_NUM;
+	input = input_d + bx * IMG_IN_NUM;
+	for (unsigned j = 0;j < FIL_N;j++) {
+		weights = weights_d + rem * FIL_NUM + j * IMG_C * FIL_NUM;
+		output = output_d + quo * IMG_C * IMG_OUT_NUM * FIL_N + rem * IMG_OUT_NUM + j * IMG_C * IMG_OUT_NUM;
+		/*
+		input = input_d + bx * IMG_IN_NUM;
+		for(unsigned i=0;i<FIL_N;i++){
+			weights = weights_d + rem * FIL_NUM + i * IMG_C * FIL_NUM;
+			output = output_d + quo * FIL_N * IMG_C * IMG_OUT_NUM ;
+			convolve(weights, input, output);
+		}
+		*/
+		convolve(weights, input, output);
+	}
+
+	if (threadIdx.x == 0) {
+//		printf("blocks: %d at rem: %d\n", bx, (bx%IMG_C)*FIL_NUM);
+	}
 
 	if (threadIdx.x == 0) {
 		for (unsigned i = 0;i < IMG_OUT_NUM;i++) {
@@ -282,7 +288,7 @@ __global__ void conv_5x5(float *weights_d, float *input_d, float *output_d, floa
 
 void genCPU(float *ih_h, float *wh_h, float *oh_h)
 {
-	for (unsigned n = 0;n<IMG_N;n++) {
+	for (unsigned n = 0;n<IMG_N*IMG_C;n++) {
 		float* ih = ih_h + n * IMG_IN_NUM;
 		float *wh = wh_h;
 		float *oh = oh_h + n*IMG_OUT_NUM;
@@ -335,31 +341,27 @@ void verifyCPU(float *in1, float *in2) {
 int main() {
 	float *wh, *ih, *oh, *oh2;
 	float *wd, *id, *od;
-	wh = new float[FIL_NUM];
-	ih = new float[IMG_IN_NUM*IMG_N];
-	oh = new float[IMG_OUT_NUM*IMG_N];
-	oh2 = new float[IMG_OUT_NUM*IMG_N];
+	wh = new float[FIL_NUM*IMG_C*FIL_N];
+	ih = new float[IMG_IN_NUM*IMG_N*IMG_C];
+	oh = new float[IMG_OUT_NUM*IMG_N*IMG_C*FIL_N];
+	oh2 = new float[IMG_OUT_NUM*IMG_N*IMG_C*FIL_N];
 
-	for (unsigned i = 0;i<IMG_IN_NUM*IMG_N;i++) {
+	for (unsigned i = 0;i<IMG_IN_NUM*IMG_N*IMG_C;i++) {
 		ih[i] = 1.0f;
 	}
-	for (unsigned i = 0;i<IMG_OUT_NUM*IMG_N;i++) {
+	for (unsigned i = 0;i<IMG_OUT_NUM*IMG_N*IMG_C*FIL_N;i++) {
 		oh[i] = 0.0f;
 		oh2[i] = 0.0f;
 	}
-	for (unsigned i = 0;i<FIL_NUM;i++) {
+	for (unsigned i = 0;i<FIL_NUM*IMG_C*FIL_N;i++) {
 		wh[i] = 0.5f;
 	}
-	cudaMalloc((void**)&od, sizeof(float)*IMG_OUT_NUM*IMG_N);
-	cudaMalloc((void**)&id, sizeof(float)*IMG_IN_NUM*IMG_N);
-	cudaMalloc((void**)&wd, sizeof(float)*FIL_NUM);
-	cudaMemcpy(od, oh, sizeof(float)*IMG_OUT_NUM*IMG_N, cudaMemcpyHostToDevice);
-	cudaMemcpy(id, ih, sizeof(float)*IMG_IN_NUM*IMG_N, cudaMemcpyHostToDevice);
-	cudaMemcpy(wd, wh, sizeof(float)*FIL_NUM, cudaMemcpyHostToDevice);
-
-	float *val = new float[IMG_N];
-	float *vald;
-	cudaMalloc((void**)&vald, sizeof(float)*IMG_N);
+	cudaMalloc((void**)&od, sizeof(float)*IMG_OUT_NUM*IMG_N*IMG_C*FIL_N);
+	cudaMalloc((void**)&id, sizeof(float)*IMG_IN_NUM*IMG_N*IMG_C);
+	cudaMalloc((void**)&wd, sizeof(float)*FIL_NUM*FIL_N*IMG_C);
+	cudaMemcpy(od, oh, sizeof(float)*IMG_OUT_NUM*IMG_N*IMG_C*FIL_N, cudaMemcpyHostToDevice);
+	cudaMemcpy(id, ih, sizeof(float)*IMG_IN_NUM*IMG_N*IMG_C, cudaMemcpyHostToDevice);
+	cudaMemcpy(wd, wh, sizeof(float)*FIL_NUM*FIL_N*IMG_C, cudaMemcpyHostToDevice);
 
 	clock_t start, stop;
 	start = clock();
@@ -367,7 +369,7 @@ int main() {
 	cudaEventCreate(&st);
 	cudaEventCreate(&et);
 	cudaEventRecord(st, 0);
-	conv_5x5 << <dim3(IMG_N*IMG_C, 1, 1), dim3(IMG_IN_X, 1, 1) >> >(wd, id, od, vald);
+	conv_5x5 << <dim3(IMG_N*IMG_C, 1, 1), dim3(IMG_IN_X, 1, 1) >> >(wd, id, od);
 	cudaDeviceSynchronize();
 	cudaEventRecord(et, 0);
 	float t = 0;
@@ -375,9 +377,9 @@ int main() {
 	stop = clock();
 	std::cout << (double)(stop - start) / CLOCKS_PER_SEC << std::endl;;
 	std::cout << t << std::endl;
-	cudaMemcpy(oh, od, sizeof(float)*IMG_OUT_NUM*IMG_N, cudaMemcpyDeviceToHost);
-	cudaMemcpy(val, vald, sizeof(float)*IMG_N, cudaMemcpyDeviceToHost);
-	for (unsigned i = 0;i < IMG_OUT_NUM*IMG_C*IMG_N;i++) {
+	cudaMemcpy(oh, od, sizeof(float)*IMG_OUT_NUM*IMG_N*IMG_C*FIL_N, cudaMemcpyDeviceToHost);
+	
+	for (unsigned i = 0;i < IMG_OUT_NUM*IMG_N*IMG_C*FIL_N;i++) {
 		if (oh[i] != 12.5f) {
 			std::cout << "Damn! went wrong at: " << i << " returned: "<< oh[i]<< std::endl;
 		}
