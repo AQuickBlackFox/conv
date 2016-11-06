@@ -133,7 +133,7 @@ __device__ void convolve(float *weights_d, float *input, float *output) {
 	var41 = __shfl_up(var42, 1, 64);
 	var43 = __shfl_down(var42, 1, 64);
 	var44 = __shfl_down(var42, 2, 64);
-	
+
 
 	tmp1 = w00 * var00;
 	tmp2 = w01 * var01;
@@ -165,9 +165,9 @@ __device__ void convolve(float *weights_d, float *input, float *output) {
 	tmp2 = w43 * var43 + tmp2;
 	tmp1 = w44 * var44 + tmp1;
 
-	if (tid > 1 && tid < IMG_IN_X-2) {
+	if (tid > 1 && tid < IMG_IN_X - 2) {
 		output[tid - 2] = tmp1 + tmp2;
-//		printf("Value %f calculated at thread: %d in block: %d at row: %d\n", output[tid-2], threadIdx.x, blockIdx.x, tid - 2);
+		//		printf("Value %f calculated at thread: %d in block: %d at row: %d\n", output[tid-2], threadIdx.x, blockIdx.x, tid - 2);
 	}
 
 
@@ -233,7 +233,7 @@ __device__ void convolve(float *weights_d, float *input, float *output) {
 		tmp2 = w43 * var43 + tmp2;
 		tmp1 = w44 * var44 + tmp1;
 
-		if (tid > 1 && tid < IMG_IN_X-2) {
+		if (tid > 1 && tid < IMG_IN_X - 2) {
 			output[tid - 2 + i * IMG_OUT_X] = tmp1 + tmp2;
 		}
 
@@ -242,9 +242,30 @@ __device__ void convolve(float *weights_d, float *input, float *output) {
 
 }
 
+__global__ void conv_5x5(float *weights_d, float *input_d, float *output_d) {
+	unsigned bx = blockIdx.x;
+	
+	float *input = input_d + (bx%IMG_C) * IMG_IN_NUM + (bx / (IMG_C*FIL_N))*(IMG_C*IMG_IN_NUM);
+	float *weights = weights_d + (bx % (IMG_C*FIL_N))*FIL_NUM;
+	float *output = output_d + bx * IMG_OUT_NUM;
+	convolve(weights, input, output);
+}
+
+
+/*
+
 __global__ void conv_5x5(float *weights_d, float *input_d, float *output_d)
 {
 	unsigned bx = blockIdx.x;
+	
+	extern __shared__ float weights_lds[];
+	if (threadIdx.x < FIL_X) {
+		for (unsigned k = 0;k < FIL_N; k++) {
+			for (unsigned j = 0;j < FIL_Y;j++) {
+				weights_lds[threadIdx.x + j*FIL_X + k*FIL_NUM*IMG_C] = weights_d[threadIdx.x + j*FIL_X + (bx % IMG_C) * FIL_NUM + k*FIL_NUM*IMG_C];
+			}
+		}
+	}
 	
 	float *input, *weights, *output;
 
@@ -253,39 +274,39 @@ __global__ void conv_5x5(float *weights_d, float *input_d, float *output_d)
 	output = output_d + bx * IMG_OUT_NUM;
 	input = input_d + bx * IMG_IN_NUM;
 	for (unsigned j = 0;j < FIL_N;j++) {
-		weights = weights_d + rem * FIL_NUM + j * IMG_C * FIL_NUM;
+		weights = weights_lds;//weights_d + rem * FIL_NUM + j * IMG_C * FIL_NUM;
 		output = output_d + quo * IMG_C * IMG_OUT_NUM * FIL_N + rem * IMG_OUT_NUM + j * IMG_C * IMG_OUT_NUM;
-		/*
+		
 		input = input_d + bx * IMG_IN_NUM;
 		for(unsigned i=0;i<FIL_N;i++){
-			weights = weights_d + rem * FIL_NUM + i * IMG_C * FIL_NUM;
-			output = output_d + quo * FIL_N * IMG_C * IMG_OUT_NUM ;
-			convolve(weights, input, output);
+		weights = weights_d + rem * FIL_NUM + i * IMG_C * FIL_NUM;
+		output = output_d + quo * FIL_N * IMG_C * IMG_OUT_NUM ;
+		convolve(weights, input, output);
 		}
-		*/
+		
 		convolve(weights, input, output);
 	}
 
 	if (threadIdx.x == 0) {
-//		printf("blocks: %d at rem: %d\n", bx, (bx%IMG_C)*FIL_NUM);
+		//		printf("blocks: %d at rem: %d\n", bx, (bx%IMG_C)*FIL_NUM);
 	}
 
 	if (threadIdx.x == 0) {
 		for (unsigned i = 0;i < IMG_OUT_NUM;i++) {
-//			printf("%f of output at block: %d at id: %d \n", output[i], bx, i);
+			//			printf("%f of output at block: %d at id: %d \n", output[i], bx, i);
 		}
 		for (unsigned i = 0;i < IMG_IN_NUM;i++) {
-//			printf("%f of output at block: %d at id: %d \n", input[i], bx, i);
+			//			printf("%f of output at block: %d at id: %d \n", input[i], bx, i);
 		}
-//		printf("%ld Pointer %ld\n", (unsigned long)(input), (unsigned long)(output));
+		//		printf("%ld Pointer %ld\n", (unsigned long)(input), (unsigned long)(output));
 		for (unsigned i = 0;i < IMG_OUT_NUM * IMG_N;i++) {
-//			printf("Value %f is present at %d th index\n", output_d[i], i);
+			//			printf("Value %f is present at %d th index\n", output_d[i], i);
 		}
 	}
 
 	//  }
 }
-
+*/
 void genCPU(float *ih_h, float *wh_h, float *oh_h)
 {
 	for (unsigned n = 0;n<IMG_N*IMG_C;n++) {
@@ -369,7 +390,7 @@ int main() {
 	cudaEventCreate(&st);
 	cudaEventCreate(&et);
 	cudaEventRecord(st, 0);
-	conv_5x5 << <dim3(IMG_N*IMG_C, 1, 1), dim3(IMG_IN_X, 1, 1) >> >(wd, id, od);
+	conv_5x5 << <dim3(IMG_N*IMG_C*FIL_N, 1, 1), dim3(IMG_IN_X, 1, 1) >> >(wd, id, od);
 	cudaDeviceSynchronize();
 	cudaEventRecord(et, 0);
 	float t = 0;
@@ -378,10 +399,10 @@ int main() {
 	std::cout << (double)(stop - start) / CLOCKS_PER_SEC << std::endl;;
 	std::cout << t << std::endl;
 	cudaMemcpy(oh, od, sizeof(float)*IMG_OUT_NUM*IMG_N*IMG_C*FIL_N, cudaMemcpyDeviceToHost);
-	
+
 	for (unsigned i = 0;i < IMG_OUT_NUM*IMG_N*IMG_C*FIL_N;i++) {
 		if (oh[i] != 12.5f) {
-			std::cout << "Damn! went wrong at: " << i << " returned: "<< oh[i]<< std::endl;
+			std::cout << "Damn! went wrong at: " << i << " returned: " << oh[i] << std::endl;
 		}
 	}
 
