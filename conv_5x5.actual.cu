@@ -21,17 +21,17 @@ THE SOFTWARE.
 #include<cuda_runtime.h>
 #include<iostream>
 
-#define IN_X 8
-#define IN_Y 8
+#define IN_X 20
+#define IN_Y 20
 #define IN_NUM IN_X * IN_Y
-#define IN_N 2
+#define IN_N 200
 
-#define OUT_X 4
-#define OUT_Y 4
+#define OUT_X 16
+#define OUT_Y 16
 #define OUT_NUM OUT_X*OUT_Y
 
-#define FIL_N 2
-#define IMG_C 4
+#define FIL_N 64
+#define IMG_C 3
 
 #define FIL_X 5
 #define FIL_Y 5
@@ -43,8 +43,15 @@ __global__ void conv_gpu(float *input_d, float *weights_d, float *output_d,
 	int bx = blockIdx.x;
 	int tx = threadIdx.x;
 
-	float *input = input_d + (bx%in_y)*in_x + (bx / in_y)*in_num*img_c;
-	float *weights = weights_d + (bx % (img_c*out_y))*(fil_num);
+	float *input = input_d + (bx%(out_y))*in_x + (bx / (out_y*fil_n))*in_num*img_c;
+	if (tx == 0) {
+//		printf("Input at block: %d is : %ld\n",bx, (unsigned long)(input));
+	}
+	float *weights = weights_d + ((bx / out_y)%(fil_n))*(img_c*fil_num);
+
+	if (tx == 0) {
+//		printf("Weights at block: %d and offset: %d is : %ld\n", bx, ((bx/out_y)%fil_n)*(img_c*fil_num),(unsigned long)(weights));
+	}
 	float *output = output_d + bx * out_x;
 
 	float w00, w01, w02, w03, w04;
@@ -151,7 +158,7 @@ __global__ void conv_gpu(float *input_d, float *weights_d, float *output_d,
 
 		tmp += tmp1 + tmp2;
 	}
-	if (tx > 1 && tx < in_x - 2) {
+	if (tx > 1 && tx < in_x-2) {
 		output[tx - 2] = tmp;
 	}
 }
@@ -212,11 +219,13 @@ int main() {
 	float *input_h = new float[IN_NUM * IMG_C * IN_N];
 	float *fil_h = new float[25 * FIL_N*IMG_C];
 	float *output_h = new float[OUT_NUM*FIL_N*IN_N];
-
+	float *output_cpu = new float[OUT_NUM*FIL_N*IN_N];
+	srand(0);
 	for (unsigned k = 0;k < IN_N;k++) {
 		for (unsigned j = 0;j < IMG_C;j++) {
 			for (unsigned i = 0;i < IN_NUM;i++) {
-				input_h[i + j*IN_NUM + k*IN_NUM*IMG_C] = 1.0f + j*1.0f;
+//				input_h[i + j*IN_NUM + k*IN_NUM*IMG_C] = 1.0f + j*1.0f;
+				input_h[i + j*IN_NUM + k*IN_NUM*IMG_C] = rand() % 10 + 1;
 			}
 		}
 	}
@@ -226,31 +235,33 @@ int main() {
 	}
 	for (unsigned i = 0;i < OUT_NUM*FIL_N*IN_N;i++) {
 		output_h[i] = 0.0f;
+		output_cpu[i] = 0.0f;
 	}
 
-	conv_cpu(input_h, fil_h, output_h,
+	conv_cpu(input_h, fil_h, output_cpu,
 		IN_X, IN_Y, IN_NUM, IN_N, IMG_C, FIL_N, 25,
 		OUT_X, OUT_Y, OUT_NUM, IN_N);
 
-
+/*
 	for (unsigned i = 0;i < OUT_NUM*FIL_N*IN_N;i++) {
-		if (output_h[i] != 250.0f) {
-			std::cout << "Bad output at: " << i << " " << output_h[i] << std::endl;
+		if (output_h[i] != 375.0f) {
+			std::cout << "Bad output at: " << i << " " << output_cpu[i] << std::endl;
 			return -1;
 		}
 		else {
 			output_h[i] = 0.0f;
 		}
 	}
-
+*/
 	float *input_d, *weights_d, *output_d;
+	
 	cudaMalloc((void**)&input_d, sizeof(float)*IN_NUM*IMG_C*IN_N);
 	cudaMalloc((void**)&weights_d, sizeof(float)*FIL_N*IMG_C * 25);
 	cudaMalloc((void**)&output_d, sizeof(float)*OUT_NUM*FIL_N*IN_N);
-
+	
 	cudaMemcpy(input_d, input_h, sizeof(float)*IN_NUM*IMG_C*IN_N, cudaMemcpyHostToDevice);
 	cudaMemcpy(weights_d, fil_h, sizeof(float) * 25 * FIL_N*IMG_C, cudaMemcpyHostToDevice);
-	cudaMemcpy(output_d, output_h, sizeof(float)*OUT_NUM*FIL_N*IN_N, cudaMemcpyHostToDevice);
+	
 	cudaEvent_t st, et;
 	cudaEventCreate(&st);
 	cudaEventCreate(&et);
@@ -267,9 +278,9 @@ int main() {
 
 	cudaMemcpy(output_h, output_d, sizeof(float)*OUT_NUM*FIL_N*IN_N, cudaMemcpyDeviceToHost);
 	for (unsigned i = 0;i < OUT_NUM*FIL_N*IN_N;i++) {
-		if (output_h[i] != 250.0f) {
+		if (output_h[i] != output_cpu[i]) {
 			std::cout << "Bad output at: " << i << " " << output_h[i] << std::endl;
-		return 0;
+			return 0;
 		}
 	}
 }
