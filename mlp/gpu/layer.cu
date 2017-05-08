@@ -17,11 +17,11 @@ struct Matrix {
 	T *ptr;
 	Matrix(T *ptr) : ptr(ptr), h(height), w(width) {}
 	Matrix() = delete;
-	__device__ __host__ inline T& operator()(int y, int x) {
-		return ptr[x+y*width];
+	__device__ __host__ inline T& operator[](int idx) {
+		return ptr[idx];
 	}
-	__device__ __host__ inline const T& operator()(int y, int x) const {
-		return ptr[x+y*width];
+	__device__ __host__ inline const T& operator[](int idx) const {
+		return ptr[idx];
 	}
 	~Matrix() {}
 };
@@ -48,15 +48,22 @@ __global__ void Dot(Matrix<T, w_height, x_width> Y,
 	int bx = blockIdx.x;
 	int by = blockIdx.y;
 
+	int row = ty + by * TILE_X;
+	int col = tx + bx * TILE_X;
+
 	__shared__ T sW[TILE_Y][TILE_X];
+	__shared__ T sX[TILE_Y][TILE_X];
 	T C = 0;
 
 	for (int j = 0; j < w_width / TILE_Y; j++) {
-		sW[ty][tx] = W(ty+j*by, tx+j*bx);
+		sW[ty][tx] = W[row*w_width + (j*TILE_X + tx)];
+		sX[ty][tx] = X[col + (j*TILE_X+ty)*x_width];
+		__syncthreads();
 		for (int i = 0; i < TILE_Y; i++) {
-			C = C + sW[ty][i] * X(i, tx+j*bx);
+			C = C + sW[ty][i] * sX[i][tx];
 		}
-		Y(ty+j*by, tx+j*bx) = C;
+		__syncthreads();
+		Y[row*x_width+col] = C;
 	}
 }
 
@@ -93,11 +100,11 @@ int main() {
 	Matrix<float, X1_HEIGHT, X1_WIDTH> X1(x1d);
 	Matrix<float, W1_HEIGHT, W1_WIDTH> W1(w1d);
 	Matrix<float, Y1_HEIGHT, Y1_WIDTH> Y1(y1d);
-	dim3 dimGrid(X1_WIDTH/TILE_X+1, W1_HEIGHT/TILE_X);
-	dim3 dimBlock(TILE_Y,TILE_X);
-	(Dot<float, W1_HEIGHT, W1_WIDTH, X1_HEIGHT, X1_WIDTH>)<<<dimGrid, dimBlock>>> (Y1, W1, X1);
+	dim3 dimGrid(X1_WIDTH / TILE_X, W1_HEIGHT / TILE_X);
+	dim3 dimBlock(TILE_Y, TILE_X);
+	(Dot<float, W1_HEIGHT, W1_WIDTH, X1_HEIGHT, X1_WIDTH>) << <dimGrid, dimBlock >> > (Y1, W1, X1);
 	std::cout << dimGrid.x << " " << dimGrid.y << std::endl;
-	std::cout << dimBlock.x <<" "<<dimBlock.y << std::endl;
+	std::cout << dimBlock.x << " " << dimBlock.y << std::endl;
 	cudaDeviceSynchronize();
 	cudaMemcpy(y1, y1d, Y1_HEIGHT*Y1_WIDTH * sizeof(float), cudaMemcpyDeviceToHost);
 	Matrix<float, Y1_HEIGHT, Y1_WIDTH> Y(y1);
