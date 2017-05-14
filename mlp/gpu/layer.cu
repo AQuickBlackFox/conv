@@ -24,10 +24,10 @@ struct Matrix {
 		return ptr[idx];
 	}
 	__device__ __host__ inline T& operator()(int y, int x) {
-		return ptr[x + y*width];
+		return ptr[x + y * width];
 	}
-	__device__ __host__ inline const T& operator()(int y, int x) {
-		return ptr[x+y*width];
+	__device__ __host__ inline const T& operator()(int y, int x) const {
+		return ptr[x + y * width];
 	}
 	~Matrix() {}
 };
